@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycling Calculator</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 20px; }
+        .container { background: var(--card); max-width: 600px; width: 100%; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h1 { font-size: 2rem; text-align: center; color: var(--primary); margin-bottom: 25px; font-weight: 800; text-transform: uppercase; letter-spacing: -1px; }
+        .section { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
+        .section-title { font-weight: bold; margin-bottom: 12px; display: block; color: var(--primary); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 1rem; transition: border 0.2s; }
+        input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .highlight-input { border: 2px solid #93c5fd; background: #f0f9ff; }
+        .results { background: #2563eb; color: white; padding: 25px; border-radius: 10px; margin-top: 25px; }
+        .res-val { font-size: 2.2rem; font-weight: 800; display: block; }
+        .res-label { font-size: 0.8rem; color: #bfdbfe; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .note { font-size: 0.75rem; color: #64748b; margin-top: 20px; line-height: 1.5; background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #cbd5e1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Cycling Calculator</h1>
+    
+    <div class="section">
+        <span class="section-title">1. System Mass</span>
+        <div class="grid">
+            <div class="input-group">
+                <label>Rider Mass (kg)</label>
+                <input type="number" id="mb" value="65" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>Bike & Gear (kg)</label>
+                <input type="number" id="m_gear" value="8" oninput="calculate()">
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <span class="section-title">2. Power Input</span>
+        <div class="input-group">
+            <label>Measured Power (W) - <span style="color: #64748b; font-weight: normal;">Optional</span></label>
+            <input type="number" id="measured_po" placeholder="Enter if available" class="highlight-input" oninput="calculate()">
+        </div>
+    </div>
+
+    <div class="section">
+        <span class="section-title">3. Ascent Data (For Estimation)</span>
+        <div class="grid">
+            <div class="input-group">
+                <label>Time (seconds)</label>
+                <input type="number" id="time" value="1800" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>Elevation Gain (m)</label>
+                <input type="number" id="elevation" value="623" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>Distance (m)</label>
+                <input type="number" id="dist" value="9200" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>Avg Altitude (m)</label>
+                <input type="number" id="alt" value="1000" oninput="calculate()">
+            </div>
+        </div>
+    </div>
+
+    <div class="section" style="border: none;">
+        <span class="section-title">4. Efficiency Parameters</span>
+        <div class="grid">
+            <div class="input-group">
+                <label>Tires (Crr)</label>
+                <select id="crr" onchange="calculate()">
+                    <option value="0.0050">0.0050 (Standard Training)</option>
+                    <option value="0.0040">0.0040 (Race-Clincher)</option>
+                    <option value="0.0033">0.0033 (Pro-Tubeless)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Gross Efficiency (%)</label>
+                <input type="number" id="ge" value="21" step="0.5" oninput="calculate()">
+            </div>
+        </div>
+    </div>
+
+    <div class="results">
+        <div class="grid" style="text-align: center;">
+            <div>
+                <span class="res-label" id="po-label">Estimated PO</span>
+                <span class="res-val" id="res-po">0 W</span>
+            </div>
+            <div>
+                <span class="res-label">VO₂ Uptake</span>
+                <span class="res-val" id="res-vo2">0.0 ml/kg</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="note">
+        <strong>Technical Notes:</strong><br>
+        • If "Measured Power" is provided, it is used directly for metabolic calculations.<br>
+        • Otherwise, Power Output (PO) is estimated from ascent velocity using a physical-mathematical model.<br>
+        • <strong>Note on Metabolic Equivalent:</strong> The current VO2 estimation assumes an energy equivalent of 5.189 kcal/L O2, which corresponds to a Respiratory Exchange Ratio (RER) of 1.0. This is valid for high-intensity efforts. However, for submaximal or low-intensity exercise where fat oxidation is higher, this model may slightly underestimate the actual oxygen uptake.
+    </div>
+</div>
+
+<script>
+function calculate() {
+    const mb = parseFloat(document.getElementById('mb').value);
+    const m_gear = parseFloat(document.getElementById('m_gear').value);
+    const m_total = mb + m_gear;
+    const t = parseFloat(document.getElementById('time').value);
+    const a = parseFloat(document.getElementById('elevation').value);
+    const d = parseFloat(document.getElementById('dist').value);
+    const h = parseFloat(document.getElementById('alt').value);
+    const crrValue = parseFloat(document.getElementById('crr').value);
+    const geValue = parseFloat(document.getElementById('ge').value) / 100;
+    const manualPO = parseFloat(document.getElementById('measured_po').value);
+
+    if (!mb || !geValue) return;
+
+    let finalPO;
+    let labelText = "Estimated PO";
+
+    if (!isNaN(manualPO) && manualPO > 0) {
+        finalPO = manualPO;
+        labelText = "Measured PO";
+    } else {
+        const v = d / t; 
+        const g = 9.81;
+        const ap = 0.04324 * Math.pow(mb, 0.594);
+        const cd = 4.45 * Math.pow(mb, -0.45);
+        const cda = ap * cd;
+        const rho = 1.225 * Math.exp(-h / 8500);
+        const pa = 0.5 * rho * cda * Math.pow(v, 3);
+        const pg = m_total * g * (a / t);
+        const pr = crrValue * m_total * g * v;
+        finalPO = (pg + pa + pr) / 0.96;
+    }
+
+    const kcal_min = (finalPO / 4184) * 60 / geValue;
+    const vo2_abs = kcal_min / 5.189;
+    const vo2_rel = (vo2_abs * 1000) / mb;
+
+    document.getElementById('po-label').innerText = labelText;
+    document.getElementById('res-po').innerText = Math.round(finalPO) + " W";
+    document.getElementById('res-vo2').innerText = vo2_rel.toFixed(1) + " ml/kg/min";
+}
+calculate();
+</script>
+
+</body>
+</html>
