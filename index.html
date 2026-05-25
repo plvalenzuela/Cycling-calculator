@@ -43,10 +43,16 @@
     </div>
 
     <div class="section">
-        <span class="section-title">2. Power Input</span>
-        <div class="input-group">
-            <label>Measured Power (W) - <span style="color: #64748b; font-weight: normal;">Optional</span></label>
-            <input type="number" id="measured_po" placeholder="Enter if available" class="highlight-input" oninput="calculate()">
+        <span class="section-title">2. Advanced Inputs (Optional)</span>
+        <div class="grid">
+            <div class="input-group">
+                <label>Measured Power (W)</label>
+                <input type="number" id="measured_po" placeholder="Leave empty to estimate" class="highlight-input" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>Known CdA (m²)</label>
+                <input type="number" id="manual_cda" placeholder="Leave empty to estimate" class="highlight-input" step="0.01" oninput="calculate()">
+            </div>
         </div>
     </div>
 
@@ -105,8 +111,8 @@
 
     <div class="note">
         <strong>Technical Notes:</strong><br>
-        • If "Measured Power" is provided, it is used directly for metabolic calculations.<br>
-        • Otherwise, Power Output (PO) is estimated from ascent velocity using a physical-mathematical model.<br>
+        • If "Measured Power" is provided, it directly overrides the mechanical estimation for metabolic calculations.<br>
+        • If "Known CdA" is provided, it overrides the body-mass-based alometric model estimation.<br>
         • <strong>Note on Metabolic Equivalent:</strong> The current VO2 estimation assumes an energy equivalent of 5.189 kcal/L O2, which corresponds to a Respiratory Exchange Ratio (RER) of 1.0. This is valid for high-intensity efforts. However, for submaximal or low-intensity exercise where fat oxidation is higher, this model may slightly underestimate the actual oxygen uptake.
     </div>
 </div>
@@ -123,6 +129,7 @@ function calculate() {
     const crrValue = parseFloat(document.getElementById('crr').value);
     const geValue = parseFloat(document.getElementById('ge').value) / 100;
     const manualPO = parseFloat(document.getElementById('measured_po').value);
+    const manualCdA = parseFloat(document.getElementById('manual_cda').value);
 
     if (!mb || !geValue) return;
 
@@ -135,16 +142,30 @@ function calculate() {
     } else {
         const v = d / t; 
         const g = 9.81;
-        const ap = 0.04324 * Math.pow(mb, 0.594);
-        const cd = 4.45 * Math.pow(mb, -0.45);
-        const cda = ap * cd;
+        
+        // CdA Setup (Manual vs Estimated via Heil Model)
+        let cda;
+        if (!isNaN(manualCdA) && manualCdA > 0) {
+            cda = manualCdA;
+        } else {
+            const ap = 0.04324 * Math.pow(mb, 0.594);
+            const cd = 4.45 * Math.pow(mb, -0.45);
+            cda = ap * cd;
+        }
+
+        // Air Density (Barometric formula)
         const rho = 1.225 * Math.exp(-h / 8500);
+
+        // Power components
         const pa = 0.5 * rho * cda * Math.pow(v, 3);
         const pg = m_total * g * (a / t);
         const pr = crrValue * m_total * g * v;
+
+        // Total mechanical PO (96% drivetrain efficiency)
         finalPO = (pg + pa + pr) / 0.96;
     }
 
+    // VO2 conversion (5.189 kcal/L O2)
     const kcal_min = (finalPO / 4184) * 60 / geValue;
     const vo2_abs = kcal_min / 5.189;
     const vo2_rel = (vo2_abs * 1000) / mb;
