@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycling Climb Calculator</title>
+    <meta name="description" content="Estimate mean power output and oxygen uptake during uphill cycling from climbing time, elevation gain and system mass.">
+    <style>
+        :root {
+            --primary: #2563eb; --primary-dark: #1d4ed8; --bg: #f8fafc; --card: #ffffff; --text: #1e293b;
+            --muted: #64748b; --border: #cbd5e1; --soft: #f1f5f9;
+            --warn-bg: #fffbeb; --warn-border: #f59e0b; --warn-text: #92400e;
+            --err-bg: #fef2f2; --err-border: #ef4444; --err-text: #991b1b;
+            --ok-bg: #f0fdf4; --ok-border: #22c55e; --ok-text: #166534;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 20px 16px; margin: 0; }
+        .container { background: var(--card); max-width: 640px; width: 100%; padding: 28px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h1 { font-size: 1.9rem; text-align: center; color: var(--primary); margin: 0 0 6px; font-weight: 800; text-transform: uppercase; letter-spacing: -1px; }
+        .subtitle { text-align: center; color: var(--muted); font-size: 0.9rem; margin: 0 0 24px; line-height: 1.4; }
+        .section { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--soft); }
+        .section-title { font-weight: bold; margin-bottom: 12px; display: block; color: var(--primary); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-group { margin-bottom: 4px; transition: opacity 0.2s; }
+        .input-group.disabled { opacity: 0.4; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; }
+        .hint { display: block; font-size: 0.72rem; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+        input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; transition: border 0.2s; background: #fff; color: var(--text); font-family: inherit; }
+        input:focus, select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+        input:disabled { background: var(--soft); cursor: not-allowed; }
+        input.invalid { border-color: var(--err-border); background: var(--err-bg); }
+        .highlight-input { border: 2px solid #93c5fd; background: #f0f9ff; }
+        .derived { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .chip { background: var(--soft); border-radius: 999px; padding: 5px 12px; font-size: 0.8rem; color: var(--text); }
+        .chip b { font-weight: 700; }
+        .messages { margin-top: 18px; display: grid; gap: 8px; }
+        .msg { font-size: 0.82rem; line-height: 1.45; padding: 10px 12px; border-radius: 8px; border-left: 4px solid; }
+        .msg.warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+        .msg.error { background: var(--err-bg); border-color: var(--err-border); color: var(--err-text); }
+        .msg.ok { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); }
+        .results { background: var(--primary); color: white; padding: 22px; border-radius: 10px; margin-top: 18px; }
+        .results.hidden { display: none; }
+        .res-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: center; }
+        .res-val { font-size: 2.1rem; font-weight: 800; display: block; line-height: 1.15; }
+        .res-unit { font-size: 1rem; font-weight: 600; }
+        .res-label { font-size: 0.75rem; color: #bfdbfe; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+        .res-sub { font-size: 0.8rem; color: #dbeafe; display: block; margin-top: 6px; line-height: 1.4; }
+        .breakdown { margin-top: 18px; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 14px; }
+        .breakdown-title { font-size: 0.72rem; color: #bfdbfe; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,0.2); }
+        .bar span { display: block; height: 100%; }
+        .seg-g { background: #ffffff; } .seg-a { background: #93c5fd; } .seg-r { background: #1e3a8a; }
+        .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.78rem; margin-top: 8px; color: #eff6ff; }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+        .note { font-size: 0.76rem; color: var(--muted); margin-top: 18px; line-height: 1.55; background: var(--bg); padding: 14px 16px; border-radius: 8px; border-left: 4px solid var(--border); }
+        .note strong { color: var(--text); }
+        .note ul { margin: 6px 0 0; padding-left: 18px; }
+        .note li { margin-bottom: 4px; }
+        .citation { font-size: 0.75rem; color: var(--muted); margin-top: 14px; text-align: center; line-height: 1.5; }
+        .citation a { color: var(--primary); }
+        @media (max-width: 480px) {
+            .container { padding: 20px 16px; }
+            .grid, .res-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+<main class="container">
+    <h1>Cycling Climb Calculator</h1>
+    <p class="subtitle">Estimates mean power output (PO) and oxygen uptake (VO₂) during a sustained climb from ascent time, elevation gain and system mass.</p>
+
+    <section class="section" aria-labelledby="s1">
+        <span class="section-title" id="s1">1. System Mass</span>
+        <div class="grid">
+            <div class="input-group">
+                <label for="mb">Rider body mass (kg)</label>
+                <input type="number" id="mb" value="65" min="30" max="150" step="0.1" inputmode="decimal">
+                <span class="hint">Used for the aerodynamic estimate and to express VO₂ per kg.</span>
+            </div>
+            <div class="input-group">
+                <label for="m_gear">Bike &amp; gear (kg)</label>
+                <input type="number" id="m_gear" value="8" min="0" max="40" step="0.1" inputmode="decimal">
+                <span class="hint">Bike plus everything carried: clothing, shoes, helmet, bottles, devices.</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" aria-labelledby="s2">
+        <span class="section-title" id="s2">2. Ascent Data</span>
+        <div class="grid">
+            <div class="input-group">
+                <label for="time">Ascent time (mm:ss or h:mm:ss)</label>
+                <input type="text" id="time" value="30:00" inputmode="numeric" autocomplete="off" spellcheck="false">
+                <span class="hint">From the start to the summit, excluding any stops.</span>
+            </div>
+            <div class="input-group">
+                <label for="elevation">Elevation gain (m)</label>
+                <input type="number" id="elevation" value="623" min="1" step="1" inputmode="numeric">
+                <span class="hint">Summit altitude minus start altitude (official profile or barometric altimeter preferred over GPS).</span>
+            </div>
+            <div class="input-group">
+                <label for="dist">Distance (m)</label>
+                <input type="number" id="dist" value="9200" min="1" step="1" inputmode="numeric">
+            </div>
+            <div class="input-group">
+                <label for="alt">Mean altitude (m)</label>
+                <input type="number" id="alt" value="1000" min="-500" max="6000" step="1" inputmode="numeric">
+                <span class="hint">Average of start and summit altitudes; used to estimate air density.</span>
+            </div>
+        </div>
+        <div class="derived" id="derived" aria-live="polite"></div>
+    </section>
+
+    <section class="section" aria-labelledby="s3">
+        <span class="section-title" id="s3">3. Model Parameters</span>
+        <div class="grid">
+            <div class="input-group">
+                <label for="crr">Tyres (rolling resistance, Crr)</label>
+                <select id="crr">
+                    <option value="0.0050">0.0050 (standard training tyres)</option>
+                    <option value="0.0040">0.0040 (race clincher)</option>
+                    <option value="0.0033">0.0033 (race tubeless / tubular)</option>
+                    <option value="custom">Custom value…</option>
+                </select>
+                <input type="number" id="crr_custom" placeholder="e.g. 0.0045" step="0.0001" min="0.001" max="0.02" inputmode="decimal" style="display:none; margin-top:8px;" aria-label="Custom Crr">
+            </div>
+            <div class="input-group">
+                <label for="ge">Gross efficiency (%)</label>
+                <input type="number" id="ge" value="21" min="15" max="27" step="0.5" inputmode="decimal">
+                <span class="hint">Use an individually measured value if available; 21% is typical of trained cyclists.</span>
+            </div>
+            <div class="input-group">
+                <label for="drivetrain">Drivetrain efficiency (%)</label>
+                <input type="number" id="drivetrain" value="96" min="85" max="100" step="0.5" inputmode="decimal">
+            </div>
+        </div>
+    </section>
+
+    <section class="section" style="border: none;" aria-labelledby="s4">
+        <span class="section-title" id="s4">4. Optional Inputs</span>
+        <div class="grid">
+            <div class="input-group">
+                <label for="measured_po">Measured power (W)</label>
+                <input type="number" id="measured_po" placeholder="Leave empty to estimate" class="highlight-input" min="1" step="1" inputmode="numeric">
+                <span class="hint">If provided, VO₂ is estimated from this value instead of the mechanical model.</span>
+            </div>
+            <div class="input-group" id="cda-group">
+                <label for="manual_cda">Known CdA (m²)</label>
+                <input type="number" id="manual_cda" placeholder="Leave empty to estimate" class="highlight-input" step="0.001" min="0.1" max="0.8" inputmode="decimal">
+                <span class="hint">Overrides the body-mass-based (allometric) estimate.</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="messages" id="messages" aria-live="polite"></div>
+
+    <div class="results" id="results" aria-live="polite">
+        <div class="res-grid">
+            <div>
+                <span class="res-label" id="po-label">Estimated PO</span>
+                <span class="res-val"><span id="res-po">–</span> <span class="res-unit">W</span></span>
+                <span class="res-sub" id="res-po-sub"></span>
+            </div>
+            <div>
+                <span class="res-label">Estimated VO₂</span>
+                <span class="res-val"><span id="res-vo2">–</span> <span class="res-unit">ml/kg/min</span></span>
+                <span class="res-sub" id="res-vo2-sub"></span>
+            </div>
+        </div>
+        <div class="breakdown" id="breakdown">
+            <div class="breakdown-title">Power breakdown (at the wheel)</div>
+            <div class="bar" role="img" id="bar" aria-label="Power breakdown">
+                <span class="seg-g" id="seg-g"></span><span class="seg-a" id="seg-a"></span><span class="seg-r" id="seg-r"></span>
+            </div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+
+    <div class="note">
+        <strong>When are these estimates reliable?</strong>
+        <ul>
+            <li>The model was validated in trained male cyclists during a sustained, evenly paced, individual uphill time trial (9.2 km, ~7% average gradient, ~30 min, low wind).</li>
+            <li>In that study, estimated PO showed a trivial bias, with individual differences of about ±6.5% (95% limits of agreement). VO₂ estimates showed individual differences of about ±13–14%. Estimates are therefore more suitable for group-level comparisons or for estimating the order of magnitude of a performance than for detecting small changes in a single rider.</li>
+            <li>Accuracy is expected to decrease on shallower climbs, in windy conditions, when riding in a group (drafting), with variable pacing, or in short efforts.</li>
+            <li>As gravity accounts for most of the power on steep climbs, measure rather than assume system mass, elevation gain and ascent time: an error of 1 kg, 10 m or 30 s changes the estimated PO by roughly 1–2%. Each 1% (absolute) error in gross efficiency changes the estimated VO₂ by ~5%.</li>
+        </ul>
+        <br>
+        <strong>Technical notes:</strong>
+        <ul>
+            <li>Power = gravitational + aerodynamic + rolling resistance components, divided by drivetrain efficiency. Aerodynamic drag assumes still air and a CdA estimated from body mass with allometric equations for the brake-hoods position (Heil, 2001, 2002), unless a known CdA is entered. Air density is estimated from mean altitude with the barometric formula (ρ = 1.225·e<sup>−h/8500</sup>).</li>
+            <li>VO₂ assumes an energy equivalent of 5.189 kcal per litre of O₂, corresponding to a respiratory exchange ratio of 1.0, which is appropriate for high-intensity efforts. For submaximal or low-intensity exercise, where fat oxidation is higher, this assumption may slightly underestimate the actual VO₂.</li>
+        </ul>
+    </div>
+
+    <p class="citation">
+        If you use this calculator, please cite: Sitko S, Romero-Parra N, Benito-Peinado PJ, Peinado AB, Valenzuela PL. Validity of mathematical model estimations of power output and oxygen uptake during a sustained uphill time trial: a preliminary field-based study in trained cyclists. <em>Int J Sports Physiol Perform</em> (under review).
+    </p>
+</main>
+
+<script>
+(function () {
+    'use strict';
+
+    // ---------- Model constants (identical to the published model) ----------
+    const G = 9.81;            // gravitational acceleration (m/s²)
+    const RHO0 = 1.225;        // air density at sea level (kg/m³)
+    const H_SCALE = 8500;      // scale height of the atmosphere (m)
+    const KCAL_PER_L_O2 = 5.189;
+    const J_PER_KCAL = 4184;
+    // Agreement observed in the validation study (95% limits of agreement, % of measured value)
+    const LOA_PO = 6.5;
+    const LOA_VO2_FROM_SPEED = 14;
+    const LOA_VO2_FROM_PO = 13;
+    // Thresholds for applicability warnings (edit here if needed)
+    const MIN_GRADIENT = 4;        // % average gradient
+    const MIN_DURATION_MIN = 5;    // minutes (≈ time to exhaustion at VO2max)
+
+    const $ = (id) => document.getElementById(id);
+    const num = (id) => { const v = $(id).value.trim(); return v === '' ? NaN : parseFloat(v.replace(',', '.')); };
+
+    // Parse "mm:ss", "h:mm:ss" or plain seconds
+    function parseTime(str) {
+        const s = String(str).trim();
+        if (s === '') return NaN;
+        if (!s.includes(':')) { const v = parseFloat(s.replace(',', '.')); return v > 0 ? v : NaN; }
+        const parts = s.split(':').map((p) => p.trim());
+        if (parts.length < 2 || parts.length > 3 || parts.some((p) => p === '' || !/^\d+(\.\d+)?$/.test(p))) return NaN;
+        const n = parts.map(Number);
+        const [h, m, sec] = n.length === 3 ? n : [0, n[0], n[1]];
+        if (sec >= 60 || (n.length === 3 && m >= 60)) return NaN;
+        const total = h * 3600 + m * 60 + sec;
+        return total > 0 ? total : NaN;
+    }
+    function fmtTime(sec) {
+        const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.round(sec % 60);
+        const pad = (x) => String(x).padStart(2, '0');
+        return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+    }
+
+    function vo2FromPower(po, ge, mb) {
+        const kcalMin = (po / J_PER_KCAL) * 60 / ge;
+        return (kcalMin / KCAL_PER_L_O2) * 1000 / mb;   // ml/kg/min
+    }
+
+    function setInvalid(id, bad) { $(id).classList.toggle('invalid', !!bad); $(id).setAttribute('aria-invalid', bad ? 'true' : 'false'); }
+
+    function msg(type, text) { const d = document.createElement('div'); d.className = 'msg ' + type; d.textContent = text; return d; }
+
+    function calculate() {
+        const messages = $('messages'); messages.innerHTML = '';
+        const errors = [], warnings = [];
+
+        const mb = num('mb'), mGear = num('m_gear');
+        const t = parseTime($('time').value);
+        const a = num('elevation'), d = num('dist'), h = num('alt');
+        const crrSel = $('crr').value;
+        const crr = crrSel === 'custom' ? num('crr_custom') : parseFloat(crrSel);
+        const ge = num('ge') / 100, eta = num('drivetrain') / 100;
+        const manualPO = num('measured_po'), manualCdA = num('manual_cda');
+        const usingMeasured = !isNaN(manualPO) && manualPO > 0;
+
+        // Disable inputs that are not used when measured power is provided
+        ['manual_cda', 'crr', 'crr_custom', 'drivetrain', 'alt'].forEach((id) => { $(id).disabled = usingMeasured; });
+        ['cda-group'].forEach((id) => $(id).classList.toggle('disabled', usingMeasured));
+        $('crr_custom').style.display = crrSel === 'custom' ? 'block' : 'none';
+
+        // ---------- Validation ----------
+        const check = (id, cond, text) => { setInvalid(id, !cond); if (!cond) errors.push(text); };
+        check('mb', mb >= 30 && mb <= 150, 'Rider body mass should be between 30 and 150 kg.');
+        check('m_gear', mGear >= 0 && mGear <= 40, 'Bike & gear mass should be between 0 and 40 kg.');
+        check('ge', ge >= 0.15 && ge <= 0.27, 'Gross efficiency should be between 15% and 27%.');
+        if (usingMeasured) {
+            ['time', 'elevation', 'dist', 'alt', 'drivetrain', 'crr_custom', 'manual_cda'].forEach((id) => setInvalid(id, false));
+            check('measured_po', manualPO > 0 && manualPO < 2000, 'Measured power should be between 1 and 2000 W.');
+        } else {
+            setInvalid('measured_po', false);
+            check('time', !isNaN(t), 'Enter a valid ascent time (e.g. 28:45 or 1:05:30).');
+            check('elevation', a > 0, 'Elevation gain must be greater than 0 m.');
+            check('dist', d > 0, 'Distance must be greater than 0 m.');
+            check('alt', h >= -500 && h <= 6000, 'Mean altitude should be between −500 and 6000 m.');
+            check('drivetrain', eta >= 0.85 && eta <= 1, 'Drivetrain efficiency should be between 85% and 100%.');
+            if (crrSel === 'custom') check('crr_custom', crr >= 0.001 && crr <= 0.02, 'Custom Crr should be between 0.001 and 0.02.');
+            else setInvalid('crr_custom', false);
+            if (!isNaN(manualCdA)) check('manual_cda', manualCdA >= 0.1 && manualCdA <= 0.8, 'Known CdA should be between 0.1 and 0.8 m².');
+            else setInvalid('manual_cda', false);
+            if (d > 0 && a > 0) check('elevation', a < d, 'Elevation gain cannot be larger than the distance.');
+        }
+
+        // ---------- Derived ascent descriptors ----------
+        const derived = $('derived'); derived.innerHTML = '';
+        if (!usingMeasured && !isNaN(t) && a > 0 && d > 0 && a < d) {
+            const grad = 100 * a / d, kmh = 3.6 * d / t, vam = a / t * 3600;
+            [['Average gradient', grad.toFixed(1) + '%'], ['Climbing speed', kmh.toFixed(1) + ' km/h'],
+             ['VAM', Math.round(vam) + ' m/h'], ['Duration', fmtTime(t)]].forEach(([k, v]) => {
+                const c = document.createElement('span'); c.className = 'chip'; c.innerHTML = `${k}: <b>${v}</b>`; derived.appendChild(c);
+            });
+            // Applicability warnings
+            if (grad < MIN_GRADIENT) warnings.push(`The average gradient (${grad.toFixed(1)}%) is lower than in the validation study (~7%). Aerodynamic drag becomes more important on shallower climbs, so the estimate is likely to be less accurate.`);
+            if (grad > 15) warnings.push(`The average gradient (${grad.toFixed(1)}%) is unusually steep. Please check elevation gain and distance.`);
+            if (t < MIN_DURATION_MIN * 60) warnings.push(`Short efforts (${fmtTime(t)}) involve a larger anaerobic contribution and are unlikely to reach a steady state; the VO₂ estimate in particular is likely to be less accurate than in the ~30-min validation climb.`);
+            if (kmh > 35) warnings.push(`The climbing speed (${kmh.toFixed(1)} km/h) is very high for a climb. Check the inputs; drafting or a tailwind would lead to overestimation.`);
+        }
+
+        if (errors.length) {
+            errors.forEach((e) => messages.appendChild(msg('error', e)));
+            $('results').classList.add('hidden');
+            return;
+        }
+        $('results').classList.remove('hidden');
+
+        // ---------- Model ----------
+        let po, comps = null;
+        if (usingMeasured) {
+            po = manualPO;
+        } else {
+            const v = d / t;
+            const cda = !isNaN(manualCdA) && manualCdA > 0
+                ? manualCdA
+                : (0.04324 * Math.pow(mb, 0.594)) * (4.45 * Math.pow(mb, -0.45));   // Heil allometric equations
+            const rho = RHO0 * Math.exp(-h / H_SCALE);
+            const mTot = mb + mGear;
+            const pg = mTot * G * (a / t);
+            const pa = 0.5 * rho * cda * Math.pow(v, 3);
+            const pr = crr * mTot * G * v;
+            po = (pg + pa + pr) / eta;
+            comps = { pg, pa, pr, sum: pg + pa + pr, cda, rho };
+        }
+
+        const vo2 = vo2FromPower(po, ge, mb);
+        const vo2Low = vo2FromPower(po, ge + 0.01, mb);   // higher GE -> lower VO2
+        const vo2High = vo2FromPower(po, ge - 0.01, mb);
+        const wkg = po / mb;
+
+        // ---------- Output ----------
+        $('po-label').textContent = usingMeasured ? 'Measured PO' : 'Estimated PO';
+        $('res-po').textContent = Math.round(po);
+        $('res-po-sub').textContent = usingMeasured
+            ? `${wkg.toFixed(2)} W/kg`
+            : `${wkg.toFixed(2)} W/kg · expected individual error ±${LOA_PO}% (≈${Math.round(po * (1 - LOA_PO / 100))}–${Math.round(po * (1 + LOA_PO / 100))} W)`;
+        $('res-vo2').textContent = vo2.toFixed(1);
+        const loaV = usingMeasured ? LOA_VO2_FROM_PO : LOA_VO2_FROM_SPEED;
+        $('res-vo2-sub').textContent =
+            `${(vo2 * mb / 1000).toFixed(2)} L/min · range ${vo2Low.toFixed(1)} (GE ${((ge + 0.01) * 100).toFixed(1)}%) to ${vo2High.toFixed(1)} (GE ${((ge - 0.01) * 100).toFixed(1)}%) · expected individual error ±${loaV}%`;
+
+        const bd = $('breakdown');
+        if (comps) {
+            bd.style.display = '';
+            const pct = (x) => 100 * x / comps.sum;
+            $('seg-g').style.width = pct(comps.pg) + '%';
+            $('seg-a').style.width = pct(comps.pa) + '%';
+            $('seg-r').style.width = pct(comps.pr) + '%';
+            const lost = po - comps.sum;
+            $('bar').setAttribute('aria-label', `Gravity ${pct(comps.pg).toFixed(0)}%, aerodynamic ${pct(comps.pa).toFixed(0)}%, rolling ${pct(comps.pr).toFixed(0)}%`);
+            $('legend').innerHTML =
+                `<span><i class="seg-g"></i>Gravity ${Math.round(comps.pg)} W (${pct(comps.pg).toFixed(0)}%)</span>` +
+                `<span><i class="seg-a"></i>Aerodynamic ${Math.round(comps.pa)} W (${pct(comps.pa).toFixed(0)}%)</span>` +
+                `<span><i class="seg-r"></i>Rolling ${Math.round(comps.pr)} W (${pct(comps.pr).toFixed(0)}%)</span>` +
+                `<span>Drivetrain losses ${Math.round(lost)} W · CdA ${comps.cda.toFixed(3)} m² · ρ ${comps.rho.toFixed(3)} kg/m³</span>`;
+        } else {
+            bd.style.display = 'none';
+        }
+
+        warnings.forEach((w) => messages.appendChild(msg('warn', w)));
+    }
+
+    document.querySelectorAll('input, select').forEach((el) => {
+        el.addEventListener('input', calculate);
+        el.addEventListener('change', calculate);
+    });
+    calculate();
+})();
+</script>
+
+</body>
+</html>
