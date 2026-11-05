@@ -131,10 +131,6 @@
                 <input type="number" id="ge" value="21" min="15" max="27" step="0.5" inputmode="decimal">
                 <span class="hint">Use an individually measured value if available; 21% is typical of trained cyclists.</span>
             </div>
-            <div class="input-group">
-                <label for="drivetrain">Drivetrain efficiency (%)</label>
-                <input type="number" id="drivetrain" value="96" min="85" max="100" step="0.5" inputmode="decimal">
-            </div>
         </div>
     </section>
 
@@ -170,7 +166,7 @@
             </div>
         </div>
         <div class="breakdown" id="breakdown">
-            <div class="breakdown-title">Power breakdown (at the wheel)</div>
+            <div class="breakdown-title">Power breakdown</div>
             <div class="bar" role="img" id="bar" aria-label="Power breakdown">
                 <span class="seg-g" id="seg-g"></span><span class="seg-a" id="seg-a"></span><span class="seg-r" id="seg-r"></span>
             </div>
@@ -182,15 +178,8 @@
         <strong>When are these estimates reliable?</strong>
         <ul>
             <li>The model was validated in trained male cyclists during a sustained, evenly paced, individual uphill time trial (9.2 km, ~7% average gradient, ~30 min, low wind).</li>
-            <li>In that study, estimated PO showed a trivial bias, with individual differences of about ±6.5% (95% limits of agreement). VO₂ estimates showed individual differences of about ±13–14%. Estimates are therefore more suitable for group-level comparisons or for estimating the order of magnitude of a performance than for detecting small changes in a single rider.</li>
+            <li>In that study, estimated PO showed a trivial bias, with individual differences of about ±6.5% (95% limits of agreement).</li>
             <li>Accuracy is expected to decrease on shallower climbs, in windy conditions, when riding in a group (drafting), with variable pacing, or in short efforts.</li>
-            <li>As gravity accounts for most of the power on steep climbs, measure rather than assume system mass, elevation gain and ascent time: an error of 1 kg, 10 m or 30 s changes the estimated PO by roughly 1–2%. Each 1% (absolute) error in gross efficiency changes the estimated VO₂ by ~5%.</li>
-        </ul>
-        <br>
-        <strong>Technical notes:</strong>
-        <ul>
-            <li>Power = gravitational + aerodynamic + rolling resistance components, divided by drivetrain efficiency. Aerodynamic drag assumes still air and a CdA estimated from body mass with allometric equations for the brake-hoods position (Heil, 2001, 2002), unless a known CdA is entered. Air density is estimated from mean altitude with the barometric formula (ρ = 1.225·e<sup>−h/8500</sup>).</li>
-            <li>VO₂ assumes an energy equivalent of 5.189 kcal per litre of O₂, corresponding to a respiratory exchange ratio of 1.0, which is appropriate for high-intensity efforts. For submaximal or low-intensity exercise, where fat oxidation is higher, this assumption may slightly underestimate the actual VO₂.</li>
         </ul>
     </div>
 
@@ -209,6 +198,7 @@
     const H_SCALE = 8500;      // scale height of the atmosphere (m)
     const KCAL_PER_L_O2 = 5.189;
     const J_PER_KCAL = 4184;
+    const DRIVETRAIN_EFF = 0.96;   // drivetrain efficiency (96%)
     // Agreement observed in the validation study (95% limits of agreement, % of measured value)
     const LOA_PO = 6.5;
     const LOA_VO2_FROM_SPEED = 14;
@@ -257,12 +247,12 @@
         const a = num('elevation'), d = num('dist'), h = num('alt');
         const crrSel = $('crr').value;
         const crr = crrSel === 'custom' ? num('crr_custom') : parseFloat(crrSel);
-        const ge = num('ge') / 100, eta = num('drivetrain') / 100;
+        const ge = num('ge') / 100, eta = DRIVETRAIN_EFF;
         const manualPO = num('measured_po'), manualCdA = num('manual_cda');
         const usingMeasured = !isNaN(manualPO) && manualPO > 0;
 
         // Disable inputs that are not used when measured power is provided
-        ['manual_cda', 'crr', 'crr_custom', 'drivetrain', 'alt'].forEach((id) => { $(id).disabled = usingMeasured; });
+        ['manual_cda', 'crr', 'crr_custom', 'alt'].forEach((id) => { $(id).disabled = usingMeasured; });
         ['cda-group'].forEach((id) => $(id).classList.toggle('disabled', usingMeasured));
         $('crr_custom').style.display = crrSel === 'custom' ? 'block' : 'none';
 
@@ -272,7 +262,7 @@
         check('m_gear', mGear >= 0 && mGear <= 40, 'Bike & gear mass should be between 0 and 40 kg.');
         check('ge', ge >= 0.15 && ge <= 0.27, 'Gross efficiency should be between 15% and 27%.');
         if (usingMeasured) {
-            ['time', 'elevation', 'dist', 'alt', 'drivetrain', 'crr_custom', 'manual_cda'].forEach((id) => setInvalid(id, false));
+            ['time', 'elevation', 'dist', 'alt', 'crr_custom', 'manual_cda'].forEach((id) => setInvalid(id, false));
             check('measured_po', manualPO > 0 && manualPO < 2000, 'Measured power should be between 1 and 2000 W.');
         } else {
             setInvalid('measured_po', false);
@@ -280,7 +270,6 @@
             check('elevation', a > 0, 'Elevation gain must be greater than 0 m.');
             check('dist', d > 0, 'Distance must be greater than 0 m.');
             check('alt', h >= -500 && h <= 6000, 'Mean altitude should be between −500 and 6000 m.');
-            check('drivetrain', eta >= 0.85 && eta <= 1, 'Drivetrain efficiency should be between 85% and 100%.');
             if (crrSel === 'custom') check('crr_custom', crr >= 0.001 && crr <= 0.02, 'Custom Crr should be between 0.001 and 0.02.');
             else setInvalid('crr_custom', false);
             if (!isNaN(manualCdA)) check('manual_cda', manualCdA >= 0.1 && manualCdA <= 0.8, 'Known CdA should be between 0.1 and 0.8 m².');
@@ -351,13 +340,11 @@
             $('seg-g').style.width = pct(comps.pg) + '%';
             $('seg-a').style.width = pct(comps.pa) + '%';
             $('seg-r').style.width = pct(comps.pr) + '%';
-            const lost = po - comps.sum;
             $('bar').setAttribute('aria-label', `Gravity ${pct(comps.pg).toFixed(0)}%, aerodynamic ${pct(comps.pa).toFixed(0)}%, rolling ${pct(comps.pr).toFixed(0)}%`);
             $('legend').innerHTML =
                 `<span><i class="seg-g"></i>Gravity ${Math.round(comps.pg)} W (${pct(comps.pg).toFixed(0)}%)</span>` +
                 `<span><i class="seg-a"></i>Aerodynamic ${Math.round(comps.pa)} W (${pct(comps.pa).toFixed(0)}%)</span>` +
-                `<span><i class="seg-r"></i>Rolling ${Math.round(comps.pr)} W (${pct(comps.pr).toFixed(0)}%)</span>` +
-                `<span>Drivetrain losses ${Math.round(lost)} W · CdA ${comps.cda.toFixed(3)} m² · ρ ${comps.rho.toFixed(3)} kg/m³</span>`;
+                `<span><i class="seg-r"></i>Rolling ${Math.round(comps.pr)} W (${pct(comps.pr).toFixed(0)}%)</span>`;
         } else {
             bd.style.display = 'none';
         }
